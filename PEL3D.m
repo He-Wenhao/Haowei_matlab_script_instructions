@@ -3,6 +3,7 @@ clear;
 
 % Reproducible random parameter control
 random_mode = "load"; % "generate" or "load"
+view_mode = "z_axis"; % "default" or "z_axis"
 random_param_file = "PEL3D_random_params.mat";
 pad_left = 20;
 pad_right = 20;
@@ -66,6 +67,13 @@ z = ifft2(zzz);
 
 z = real(z);
 mesh(x, y, z);
+if view_mode == "default"
+    view(3);
+elseif view_mode == "z_axis"
+    view(2);
+else
+    error("Unknown view_mode: %s. Use 'default' or 'z_axis'.", view_mode);
+end
 set(gcf, 'Color', 'none');
 axis off
 hold on;
