@@ -78,18 +78,18 @@ surf_obj = surf(ax, x, y, z, z, ...
     "EdgeColor", "none", ...
     "FaceColor", "interp", ...
     "FaceLighting", "gouraud", ...
-    "SpecularStrength", 0.06, ...
+    "SpecularStrength", 0.02, ...
     "SpecularExponent", 8, ...
-    "DiffuseStrength", 0.86, ...
-    "AmbientStrength", 0.52);
+    "DiffuseStrength", 0.68, ...
+    "AmbientStrength", 0.62);
 
 % Journal-style dark gray landscape with cool highlights near valleys.
 gray_cmap = gray(256);
-gray_cmap = 0.17 + 0.70 * gray_cmap;
+gray_cmap = 0.20 + 0.64 * gray_cmap;
 cool_tint = [linspace(0.00, 0.02, 256)', ...
              linspace(0.06, 0.20, 256)', ...
              linspace(0.08, 0.36, 256)'];
-landscape_cmap = min(gray_cmap + 0.55 * cool_tint, 1);
+landscape_cmap = min(gray_cmap + 0.45 * cool_tint, 1);
 colormap(ax, landscape_cmap);
 
 z_min = min(z(:));
@@ -99,10 +99,10 @@ if z_max > z_min
 end
 
 lighting(ax, "gouraud");
-material(ax, [0.45 0.85 0.05 8 0.7]);
+material(ax, [0.62 0.60 0.02 8 0.9]);
 camlight(ax, "headlight");
 camlight(ax, 35, 20);
-camlight(ax, -60, -12);
+camlight(ax, -45, -8);
 if view_mode == "default"
     view(3);
 elseif view_mode == "z_axis"
