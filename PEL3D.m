@@ -136,6 +136,8 @@ trace_lift = 0.012 * z_span;
 marker_lift = 0.018 * z_span;
 trace_lift = 0.050 * z_span;
 marker_lift = 0.070 * z_span;
+rope_radius = 0.22;
+ball_radius = 0.68;
 
 % Create two optimization traces on the surface
 n_trace = 420;
@@ -155,21 +157,96 @@ if any(isnan(trace2_z))
     trace2_z = interp2(x, y, z, trace2_x, trace2_y, "linear");
 end
 
-% Traces as pure solid strokes.
-plot3(ax, trace1_x, trace1_y, trace1_z + trace_lift, "-", ...
-    "Color", [0.06 0.95 0.78], "LineWidth", 3.1);
-plot3(ax, trace2_x, trace2_y, trace2_z + trace_lift, "-", ...
-    "Color", [0.24 0.80 1.00], "LineWidth", 3.1);
+% Build 3D rope traces (tube surfaces with texture).
+trace1_path = [trace1_x(:), trace1_y(:), trace1_z(:) + trace_lift];
+trace2_path = [trace2_x(:), trace2_y(:), trace2_z(:) + trace_lift];
+add_textured_rope(ax, trace1_path, rope_radius, [0.06 0.95 0.78]);
+add_textured_rope(ax, trace2_path, rope_radius, [0.24 0.80 1.00]);
 
-% Draw markers last so they stay on the top visual layer.
+% Draw 3D balls last so they stay on the top visual layer.
 mk1 = [0.00, 0.88, 0.70]; % teal
 mk2 = [0.20, 0.70, 1.00]; % cyan-blue
 mk3 = [1.00, 0.28, 0.25]; % red
-scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1 + marker_lift, 90, mk1, ...
-    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
-scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2 + marker_lift, 90, mk2, ...
-    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
-scatter3(ax, min_pt(1), min_pt(2), min_z + marker_lift, 110, mk3, ...
-    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.2);
+add_textured_ball(ax, [init_pt_1(1), init_pt_1(2), init_z_1 + marker_lift], ball_radius, mk1);
+add_textured_ball(ax, [init_pt_2(1), init_pt_2(2), init_z_2 + marker_lift], ball_radius, mk2);
+add_textured_ball(ax, [min_pt(1), min_pt(2), min_z + marker_lift], 1.08 * ball_radius, mk3);
 
 hold(ax, "off");
+
+function add_textured_rope(ax, path_xyz, radius, base_color)
+% Build a tube around a 3D path with subtle braided texture.
+n_sections = 26;
+theta = linspace(0, 2*pi, n_sections + 1);
+ct = cos(theta);
+st = sin(theta);
+n_pts = size(path_xyz, 1);
+
+dp = gradient(path_xyz);
+tangent = dp ./ max(vecnorm(dp, 2, 2), 1e-9);
+normal = zeros(n_pts, 3);
+binormal = zeros(n_pts, 3);
+for i = 1:n_pts
+    ref = [0 0 1];
+    if abs(dot(tangent(i, :), ref)) > 0.92
+        ref = [0 1 0];
+    end
+    n_vec = cross(tangent(i, :), ref);
+    n_vec = n_vec ./ max(norm(n_vec), 1e-9);
+    b_vec = cross(tangent(i, :), n_vec);
+    b_vec = b_vec ./ max(norm(b_vec), 1e-9);
+    normal(i, :) = n_vec;
+    binormal(i, :) = b_vec;
+end
+
+X = path_xyz(:, 1) + radius * (normal(:, 1) * ct + binormal(:, 1) * st);
+Y = path_xyz(:, 2) + radius * (normal(:, 2) * ct + binormal(:, 2) * st);
+Z = path_xyz(:, 3) + radius * (normal(:, 3) * ct + binormal(:, 3) * st);
+
+arc_s = [0; cumsum(vecnorm(diff(path_xyz, 1, 1), 2, 2))];
+arc_s = arc_s / max(arc_s(end), 1e-9);
+twist_u = repmat(arc_s, 1, n_sections + 1);
+twist_v = repmat(theta / (2*pi), n_pts, 1);
+braid = 0.80 + 0.20 * sin(2*pi * (7.0 * twist_u + 2.0 * twist_v));
+round_shade = repmat(0.90 + 0.10 * cos(theta - pi/5), n_pts, 1);
+texture_gain = braid .* round_shade;
+
+C = zeros(n_pts, n_sections + 1, 3);
+for k = 1:3
+    C(:, :, k) = min(1, max(0, base_color(k) .* texture_gain + 0.04));
+end
+
+surf(ax, X, Y, Z, C, ...
+    "FaceColor", "texturemap", ...
+    "EdgeColor", "none", ...
+    "FaceLighting", "gouraud", ...
+    "SpecularStrength", 0.12, ...
+    "DiffuseStrength", 0.84, ...
+    "AmbientStrength", 0.40);
+end
+
+function add_textured_ball(ax, center_xyz, radius, base_color)
+% Draw a textured sphere marker with soft micro-variation.
+res = 42;
+[sx, sy, sz] = sphere(res);
+X = center_xyz(1) + radius * sx;
+Y = center_xyz(2) + radius * sy;
+Z = center_xyz(3) + radius * sz;
+
+phi = atan2(sy, sx);
+micro = 0.90 + 0.10 * sin(6 * phi) .* (0.75 + 0.25 * cos(5 * sz));
+rim = 0.92 + 0.08 * (1 - sz.^2);
+texture_gain = micro .* rim;
+
+C = zeros(size(sx, 1), size(sx, 2), 3);
+for k = 1:3
+    C(:, :, k) = min(1, max(0, base_color(k) .* texture_gain + 0.03));
+end
+
+surf(ax, X, Y, Z, C, ...
+    "FaceColor", "texturemap", ...
+    "EdgeColor", "none", ...
+    "FaceLighting", "gouraud", ...
+    "SpecularStrength", 0.18, ...
+    "DiffuseStrength", 0.80, ...
+    "AmbientStrength", 0.44);
+end
