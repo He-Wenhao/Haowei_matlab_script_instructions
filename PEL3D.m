@@ -3,10 +3,10 @@ clear;
 
 % Reproducible random parameter control
 random_mode = "load"; % "generate" or "load"
-view_mode = "z_axis"; % "default" or "z_axis"
+view_mode = "default"; % "default" or "z_axis"
 random_param_file = "PEL3D_random_params.mat";
-pad_left = 20;
-pad_right = 20;
+pad_left = 50;
+pad_right = 25;
 pad_bottom = 20;
 pad_top = 20;
 N = 100;
@@ -79,8 +79,8 @@ axis off
 hold on;
 
 % Two initial points; minimum point will be computed from the surface
-init_pt_1 = [77, 36];
-init_pt_2 = [47, 37];
+init_pt_1 = [69, 36];
+init_pt_2 = [57, 46];
 
 % Find the true minimum point on the current surface z
 [min_z, min_idx] = min(z(:));
