@@ -4,6 +4,7 @@ clear;
 % Reproducible random parameter control
 random_mode = "load"; % "generate" or "load"
 view_mode = "default"; % "default" or "z_axis"
+z_rotation_deg = -150; % rotate camera around z axis (azimuth)
 random_param_file = "PEL3D_random_params.mat";
 pad_left = 50;
 pad_right = 25;
@@ -74,6 +75,8 @@ elseif view_mode == "z_axis"
 else
     error("Unknown view_mode: %s. Use 'default' or 'z_axis'.", view_mode);
 end
+[az, el] = view;
+view(az + z_rotation_deg, el);
 set(gcf, 'Color', 'none');
 axis off
 hold on;
