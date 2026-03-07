@@ -5,7 +5,7 @@ clear;
 random_mode = "load"; % "generate" or "load"
 view_mode = "default"; % "default" or "z_axis"
 z_rotation_deg = -150; % rotate camera around z axis (azimuth)
-topdown_tilt_deg = 25; % increase elevation for a more top-down view
+topdown_tilt_deg = 10; % increase elevation for a more top-down view
 random_param_file = "PEL3D_random_params.mat";
 pad_left = 50;
 pad_right = 25;
@@ -136,8 +136,8 @@ trace_lift = 0.012 * z_span;
 marker_lift = 0.018 * z_span;
 trace_lift = 0.050 * z_span;
 marker_lift = 0.070 * z_span;
-rope_radius = 0.22;
-ball_radius = 0.68;
+rope_radius = 0.30;
+ball_radius = 0.80;
 
 % Create two optimization traces on the surface
 n_trace = 420;
@@ -174,29 +174,52 @@ add_textured_ball(ax, [min_pt(1), min_pt(2), min_z + marker_lift], 1.08 * ball_r
 hold(ax, "off");
 
 function add_textured_rope(ax, path_xyz, radius, base_color)
-% Build a tube around a 3D path with subtle braided texture.
-n_sections = 26;
+% Build a tube around a 3D path with bright, clean texture.
+n_sections = 40;
 theta = linspace(0, 2*pi, n_sections + 1);
 ct = cos(theta);
 st = sin(theta);
 n_pts = size(path_xyz, 1);
 
-dp = gradient(path_xyz);
+dp = zeros(n_pts, 3);
+dp(1, :) = path_xyz(2, :) - path_xyz(1, :);
+dp(end, :) = path_xyz(end, :) - path_xyz(end - 1, :);
+dp(2:end-1, :) = 0.5 * (path_xyz(3:end, :) - path_xyz(1:end-2, :));
 tangent = dp ./ max(vecnorm(dp, 2, 2), 1e-9);
 normal = zeros(n_pts, 3);
 binormal = zeros(n_pts, 3);
-for i = 1:n_pts
-    ref = [0 0 1];
-    if abs(dot(tangent(i, :), ref)) > 0.92
-        ref = [0 1 0];
+
+ref = [0 0 1];
+if abs(dot(tangent(1, :), ref)) > 0.92
+    ref = [0 1 0];
+end
+normal(1, :) = cross(tangent(1, :), ref);
+normal(1, :) = normal(1, :) ./ max(norm(normal(1, :)), 1e-9);
+
+for i = 2:n_pts
+    v_prev = tangent(i - 1, :);
+    v_cur = tangent(i, :);
+    rot_axis = cross(v_prev, v_cur);
+    sin_a = norm(rot_axis);
+    cos_a = max(min(dot(v_prev, v_cur), 1), -1);
+    n_prev = normal(i - 1, :);
+    if sin_a < 1e-10
+        n_rot = n_prev;
+    else
+        k = rot_axis / sin_a;
+        ang = atan2(sin_a, cos_a);
+        n_rot = n_prev * cos(ang) + cross(k, n_prev) * sin(ang) + ...
+            k * dot(k, n_prev) * (1 - cos(ang));
     end
-    n_vec = cross(tangent(i, :), ref);
-    n_vec = n_vec ./ max(norm(n_vec), 1e-9);
-    b_vec = cross(tangent(i, :), n_vec);
+    n_rot = n_rot ./ max(norm(n_rot), 1e-9);
+    b_vec = cross(v_cur, n_rot);
     b_vec = b_vec ./ max(norm(b_vec), 1e-9);
-    normal(i, :) = n_vec;
+    normal(i, :) = cross(b_vec, v_cur);
+    normal(i, :) = normal(i, :) ./ max(norm(normal(i, :)), 1e-9);
     binormal(i, :) = b_vec;
 end
+binormal(1, :) = cross(tangent(1, :), normal(1, :));
+binormal(1, :) = binormal(1, :) ./ max(norm(binormal(1, :)), 1e-9);
 
 X = path_xyz(:, 1) + radius * (normal(:, 1) * ct + binormal(:, 1) * st);
 Y = path_xyz(:, 2) + radius * (normal(:, 2) * ct + binormal(:, 2) * st);
@@ -206,47 +229,49 @@ arc_s = [0; cumsum(vecnorm(diff(path_xyz, 1, 1), 2, 2))];
 arc_s = arc_s / max(arc_s(end), 1e-9);
 twist_u = repmat(arc_s, 1, n_sections + 1);
 twist_v = repmat(theta / (2*pi), n_pts, 1);
-braid = 0.80 + 0.20 * sin(2*pi * (7.0 * twist_u + 2.0 * twist_v));
-round_shade = repmat(0.90 + 0.10 * cos(theta - pi/5), n_pts, 1);
-texture_gain = braid .* round_shade;
+braid = 1.00 + 0.02 * sin(2*pi * (7.0 * twist_u + 2.0 * twist_v));
+texture_gain = max(0.98, braid);
 
 C = zeros(n_pts, n_sections + 1, 3);
 for k = 1:3
-    C(:, :, k) = min(1, max(0, base_color(k) .* texture_gain + 0.04));
+    C(:, :, k) = min(1, max(0, base_color(k) .* texture_gain + 0.02));
 end
 
 surf(ax, X, Y, Z, C, ...
     "FaceColor", "texturemap", ...
     "EdgeColor", "none", ...
     "FaceLighting", "gouraud", ...
-    "SpecularStrength", 0.12, ...
-    "DiffuseStrength", 0.84, ...
-    "AmbientStrength", 0.40);
+    "SpecularStrength", 0.08, ...
+    "SpecularExponent", 18, ...
+    "DiffuseStrength", 0.72, ...
+    "AmbientStrength", 0.62);
 end
 
 function add_textured_ball(ax, center_xyz, radius, base_color)
-% Draw a textured sphere marker with soft micro-variation.
-res = 42;
+% Draw a clean sphere marker with gentle bright texture.
+res = 56;
 [sx, sy, sz] = sphere(res);
 X = center_xyz(1) + radius * sx;
 Y = center_xyz(2) + radius * sy;
 Z = center_xyz(3) + radius * sz;
 
 phi = atan2(sy, sx);
-micro = 0.90 + 0.10 * sin(6 * phi) .* (0.75 + 0.25 * cos(5 * sz));
-rim = 0.92 + 0.08 * (1 - sz.^2);
-texture_gain = micro .* rim;
+micro = 1.00 + 0.015 * sin(6 * phi) .* (0.85 + 0.15 * cos(5 * sz));
+light_dir = 0.55 * sx + 0.15 * sy + 0.82 * sz;
+hemi = 0.99 + 0.04 * max(light_dir, 0);
+texture_gain = max(0.98, micro .* hemi);
 
 C = zeros(size(sx, 1), size(sx, 2), 3);
 for k = 1:3
-    C(:, :, k) = min(1, max(0, base_color(k) .* texture_gain + 0.03));
+    C(:, :, k) = min(1, max(0, base_color(k) .* texture_gain + 0.02));
 end
 
 surf(ax, X, Y, Z, C, ...
     "FaceColor", "texturemap", ...
     "EdgeColor", "none", ...
     "FaceLighting", "gouraud", ...
-    "SpecularStrength", 0.18, ...
-    "DiffuseStrength", 0.80, ...
-    "AmbientStrength", 0.44);
+    "SpecularStrength", 0.10, ...
+    "SpecularExponent", 24, ...
+    "DiffuseStrength", 0.70, ...
+    "AmbientStrength", 0.66);
 end
