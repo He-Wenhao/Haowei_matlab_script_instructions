@@ -68,7 +68,40 @@ zzz(1:n, 1:n) = zz(1:n, 1:n);
 z = ifft2(zzz);
 
 z = real(z);
-mesh(x, y, z);
+fig = figure("Color", [0.96 0.96 0.96]);
+ax = axes(fig);
+hold(ax, "on");
+
+% Smooth shaded surface with a subtle edge texture.
+surf_obj = surf(ax, x, y, z, z, ...
+    "EdgeColor", [0 0 0], ...
+    "EdgeAlpha", 0.08, ...
+    "FaceColor", "interp", ...
+    "FaceLighting", "gouraud", ...
+    "SpecularStrength", 0.25, ...
+    "DiffuseStrength", 0.82, ...
+    "AmbientStrength", 0.45);
+
+% Journal-style dark gray landscape with cool highlights near valleys.
+gray_cmap = gray(256);
+gray_cmap = 0.17 + 0.70 * gray_cmap;
+cool_tint = [linspace(0.00, 0.02, 256)', ...
+             linspace(0.06, 0.20, 256)', ...
+             linspace(0.08, 0.36, 256)'];
+landscape_cmap = min(gray_cmap + 0.55 * cool_tint, 1);
+colormap(ax, landscape_cmap);
+
+z_min = min(z(:));
+z_max = max(z(:));
+if z_max > z_min
+    caxis(ax, [z_min, z_max]);
+end
+
+lighting(ax, "gouraud");
+material(ax, [0.35 0.75 0.20 25 0.9]);
+camlight(ax, "headlight");
+camlight(ax, 35, 20);
+camlight(ax, -60, -12);
 if view_mode == "default"
     view(3);
 elseif view_mode == "z_axis"
@@ -78,9 +111,9 @@ else
 end
 [az, el] = view;
 view(az + z_rotation_deg, min(el + topdown_tilt_deg, 89));
-set(gcf, 'Color', 'none');
-axis off
-hold on;
+set(gcf, "Color", [0.96 0.96 0.96]);
+axis(ax, "off");
+axis(ax, "tight");
 
 % Two initial points; minimum point will be computed from the surface
 init_pt_1 = [69, 36];
@@ -95,13 +128,22 @@ min_pt = [x(min_row, min_col), y(min_row, min_col)];
 init_z_1 = interp2(x, y, z, init_pt_1(1), init_pt_1(2), "linear");
 init_z_2 = interp2(x, y, z, init_pt_2(1), init_pt_2(2), "linear");
 
-% Mark the three points on the surface
-plot3(init_pt_1(1), init_pt_1(2), init_z_1, "ro", ...
-    "MarkerFaceColor", "r", "MarkerSize", 7);
-plot3(init_pt_2(1), init_pt_2(2), init_z_2, "mo", ...
-    "MarkerFaceColor", "m", "MarkerSize", 7);
-plot3(min_pt(1), min_pt(2), min_z, "go", ...
-    "MarkerFaceColor", "g", "MarkerSize", 8);
+% Mark the three points with soft halo + bright core.
+mk1 = [0.00, 0.88, 0.70]; % teal
+mk2 = [0.20, 0.70, 1.00]; % cyan-blue
+mk3 = [1.00, 0.28, 0.25]; % red
+scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1, 260, mk1, ...
+    "filled", "MarkerFaceAlpha", 0.20, "MarkerEdgeAlpha", 0.00);
+scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2, 260, mk2, ...
+    "filled", "MarkerFaceAlpha", 0.20, "MarkerEdgeAlpha", 0.00);
+scatter3(ax, min_pt(1), min_pt(2), min_z, 320, mk3, ...
+    "filled", "MarkerFaceAlpha", 0.26, "MarkerEdgeAlpha", 0.00);
+scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1, 68, mk1, ...
+    "filled", "MarkerEdgeColor", [0.95 0.95 0.95], "LineWidth", 0.9);
+scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2, 68, mk2, ...
+    "filled", "MarkerEdgeColor", [0.95 0.95 0.95], "LineWidth", 0.9);
+scatter3(ax, min_pt(1), min_pt(2), min_z, 86, mk3, ...
+    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
 
 % Create two optimization traces on the surface
 n_trace = 120;
@@ -115,9 +157,14 @@ trace2_x = init_pt_2(1) + (min_pt(1) - init_pt_2(1)) * t;
 trace2_y = init_pt_2(2) + (min_pt(2) - init_pt_2(2)) * t;
 trace2_z = interp2(x, y, z, trace2_x, trace2_y, "linear");
 
-plot3(trace1_x, trace1_y, trace1_z, "r-", "LineWidth", 2.0);
-plot3(trace2_x, trace2_y, trace2_z, "m-", "LineWidth", 2.0);
+% Traces with soft glow underlay + crisp core line.
+plot3(ax, trace1_x, trace1_y, trace1_z, "-", ...
+    "Color", [0.45 1.00 0.85], "LineWidth", 8.0);
+plot3(ax, trace2_x, trace2_y, trace2_z, "-", ...
+    "Color", [0.55 0.90 1.00], "LineWidth", 8.0);
+plot3(ax, trace1_x, trace1_y, trace1_z, "-", ...
+    "Color", [0.05 0.96 0.78], "LineWidth", 3.0);
+plot3(ax, trace2_x, trace2_y, trace2_z, "-", ...
+    "Color", [0.24 0.80 1.00], "LineWidth", 3.0);
 
-legend("surface", "init point 1", "init point 2", "minimum", ...
-    "trace 1", "trace 2", "Location", "best");
-hold off;
+hold(ax, "off");
