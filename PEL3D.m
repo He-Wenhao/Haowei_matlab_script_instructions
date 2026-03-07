@@ -4,12 +4,19 @@ clear;
 % Reproducible random parameter control
 random_mode = "load"; % "generate" or "load"
 random_param_file = "PEL3D_random_params.mat";
-pad = 20;
+pad_left = 20;
+pad_right = 20;
+pad_bottom = 20;
+pad_top = 20;
 N = 100;
-x_vals = (1 + pad):(N - pad);
-y_vals = (1 + pad):(N - pad);
+if (1 + pad_left) > (N - pad_right) || (1 + pad_bottom) > (N - pad_top)
+    error("Padding is too large and leaves an empty grid.");
+end
+x_vals = (1 + pad_left):(N - pad_right);
+y_vals = (1 + pad_bottom):(N - pad_top);
 [x, y] = meshgrid(x_vals, y_vals);
-grid_size = size(x, 1); % square grid from meshgrid above
+grid_rows = size(x, 1);
+grid_cols = size(x, 2);
 
 if random_mode == "load" && isfile(random_param_file)
     loaded_data = load(random_param_file, "random_params");
@@ -20,18 +27,24 @@ if random_mode == "load" && isfile(random_param_file)
     if random_params.N ~= N
         error("Saved random parameters use N=%d, but current N=%d.", random_params.N, N);
     end
-    if ~isfield(random_params, "grid_size") || random_params.grid_size ~= grid_size
+    if ~isfield(random_params, "grid_rows") || ~isfield(random_params, "grid_cols") ...
+            || random_params.grid_rows ~= grid_rows || random_params.grid_cols ~= grid_cols ...
+            || ~isfield(random_params, "rand_term_1") || ~isfield(random_params, "rand_term_2") ...
+            || ~isequal(size(random_params.rand_term_1), [grid_rows, grid_cols]) ...
+            || ~isequal(size(random_params.rand_term_2), [grid_rows, grid_cols])
         warning("Saved random parameters are incompatible with current grid; regenerating.");
-        random_params.rand_term_1 = rand(grid_size, grid_size);
-        random_params.rand_term_2 = rand(grid_size, grid_size);
+        random_params.rand_term_1 = rand(grid_rows, grid_cols);
+        random_params.rand_term_2 = rand(grid_rows, grid_cols);
         random_params.N = N;
-        random_params.grid_size = grid_size;
+        random_params.grid_rows = grid_rows;
+        random_params.grid_cols = grid_cols;
     end
 else
-    random_params.rand_term_1 = rand(grid_size, grid_size);
-    random_params.rand_term_2 = rand(grid_size, grid_size);
+    random_params.rand_term_1 = rand(grid_rows, grid_cols);
+    random_params.rand_term_2 = rand(grid_rows, grid_cols);
     random_params.N = N;
-    random_params.grid_size = grid_size;
+    random_params.grid_rows = grid_rows;
+    random_params.grid_cols = grid_cols;
 end
 
 z = ((sin(5*x./N)+1).*(cos(15*y./N)-1) + 10*random_params.rand_term_1)...
