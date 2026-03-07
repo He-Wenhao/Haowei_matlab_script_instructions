@@ -1,80 +1,142 @@
-%% 
-clear;
+function PEL3D()
+%PEL3D Generate a textured 3D energy landscape and traces.
+%Single-file function-based design so config objects can be changed easily.
 
-% Reproducible random parameter control
-random_mode = "load"; % "generate" or "load"
-view_mode = "default"; % "default" or "z_axis"
-z_rotation_deg = -140; % rotate camera around z axis (azimuth)
-topdown_tilt_deg = 10; % increase elevation for a more top-down view
-random_param_file = "PEL3D_random_params.mat";
-pad_left = 50;
-pad_right = 25;
-pad_bottom = 20;
-pad_top = 20;
-N = 100;
-if (1 + pad_left) > (N - pad_right) || (1 + pad_bottom) > (N - pad_top)
+cfg = build_config();
+grid = build_grid(cfg);
+rand_obj = resolve_random_params(cfg, grid);
+surface_obj = build_surface(cfg, grid, rand_obj);
+random_params = rand_obj; %#ok<NASGU> % backward-compatible variable name
+save(cfg.random_param_file, "rand_obj", "random_params");
+
+scene = build_scene(cfg, grid, surface_obj.z);
+overlay = build_overlay(cfg, grid, surface_obj.z, scene.z_min, scene.z_max);
+draw_overlay(scene.ax, overlay);
+end
+
+function cfg = build_config()
+cfg = struct();
+
+% Reproducible random parameter control.
+cfg.random_mode = "load"; % "generate" or "load"
+cfg.random_param_file = "PEL3D_random_params.mat";
+
+% Camera/view controls.
+cfg.view_mode = "default"; % "default" or "z_axis"
+cfg.z_rotation_deg = -140; % rotate camera around z axis (azimuth)
+cfg.topdown_tilt_deg = 10; % increase elevation for a more top-down view
+
+% Grid controls.
+cfg.N = 100;
+cfg.pad_left = 50;
+cfg.pad_right = 25;
+cfg.pad_bottom = 20;
+cfg.pad_top = 20;
+
+% Frequency-domain smoothing.
+cfg.lowpass_n = 2;
+
+% Overlay/trace controls.
+cfg.init_pt_1 = [69, 36];
+cfg.init_pt_2 = [57, 46];
+cfg.n_trace = 420;
+cfg.rope_radius = 0.30;
+cfg.ball_radius = 0.42;
+cfg.trace_lift_ratio = 0.050;
+cfg.ball3_scale = 1.08;
+
+% Appearance controls.
+cfg.figure_bg = [0.96 0.96 0.96];
+cfg.rope_color_1 = [0.06 0.95 0.78];
+cfg.rope_color_2 = [0.24 0.80 1.00];
+cfg.ball_color_1 = [0.00 0.88 0.70];
+cfg.ball_color_2 = [0.20 0.70 1.00];
+cfg.ball_color_3 = [1.00 0.28 0.25];
+end
+
+function grid = build_grid(cfg)
+if (1 + cfg.pad_left) > (cfg.N - cfg.pad_right) || ...
+        (1 + cfg.pad_bottom) > (cfg.N - cfg.pad_top)
     error("Padding is too large and leaves an empty grid.");
 end
-x_vals = (1 + pad_left):(N - pad_right);
-y_vals = (1 + pad_bottom):(N - pad_top);
-[x, y] = meshgrid(x_vals, y_vals);
-grid_rows = size(x, 1);
-grid_cols = size(x, 2);
 
-if random_mode == "load" && isfile(random_param_file)
-    loaded_data = load(random_param_file, "random_params");
-    random_params = loaded_data.random_params;
-    if ~isfield(random_params, "N")
-        error("Saved random parameters are missing field N.");
-    end
-    if random_params.N ~= N
-        error("Saved random parameters use N=%d, but current N=%d.", random_params.N, N);
-    end
-    if ~isfield(random_params, "grid_rows") || ~isfield(random_params, "grid_cols") ...
-            || random_params.grid_rows ~= grid_rows || random_params.grid_cols ~= grid_cols ...
-            || ~isfield(random_params, "rand_term_1") || ~isfield(random_params, "rand_term_2") ...
-            || ~isequal(size(random_params.rand_term_1), [grid_rows, grid_cols]) ...
-            || ~isequal(size(random_params.rand_term_2), [grid_rows, grid_cols])
-        warning("Saved random parameters are incompatible with current grid; regenerating.");
-        random_params.rand_term_1 = rand(grid_rows, grid_cols);
-        random_params.rand_term_2 = rand(grid_rows, grid_cols);
-        random_params.N = N;
-        random_params.grid_rows = grid_rows;
-        random_params.grid_cols = grid_cols;
-    end
-else
-    random_params.rand_term_1 = rand(grid_rows, grid_cols);
-    random_params.rand_term_2 = rand(grid_rows, grid_cols);
-    random_params.N = N;
-    random_params.grid_rows = grid_rows;
-    random_params.grid_cols = grid_cols;
+x_vals = (1 + cfg.pad_left):(cfg.N - cfg.pad_right);
+y_vals = (1 + cfg.pad_bottom):(cfg.N - cfg.pad_top);
+[x, y] = meshgrid(x_vals, y_vals);
+
+grid = struct();
+grid.x = x;
+grid.y = y;
+grid.rows = size(x, 1);
+grid.cols = size(x, 2);
 end
 
-z = ((sin(5*x./N)+1).*(cos(15*y./N)-1) + 10*random_params.rand_term_1)...
-    .*((cos(5*y./N)-1).*(sin(15*x./N)+1) + 10*random_params.rand_term_2);
+function rand_obj = resolve_random_params(cfg, grid)
+should_load = cfg.random_mode == "load" && isfile(cfg.random_param_file);
 
-% Save the exact random values used in this run.
-save(random_param_file, "random_params");
+if should_load
+    loaded_data = load(cfg.random_param_file);
+    if isfield(loaded_data, "rand_obj")
+        candidate = loaded_data.rand_obj;
+    elseif isfield(loaded_data, "random_params")
+        % Backward compatibility with older saved variable name.
+        candidate = loaded_data.random_params;
+    else
+        candidate = struct();
+    end
 
-% z = ((sin(2*x./N)+1).*(cos(2*y./N)-1) + 2*rand(1, N))...
-%     .*((cos(2*y./N)-1).*(sin(2*x./N)+1) + 2*rand(1, N));
+    if is_random_obj_compatible(candidate, cfg, grid)
+        rand_obj = candidate;
+        return;
+    end
+    warning("Saved random parameters are incompatible with current grid; regenerating.");
+end
 
+rand_obj = make_random_obj(cfg, grid);
+end
 
+function ok = is_random_obj_compatible(rand_obj, cfg, grid)
+ok = isfield(rand_obj, "N") && rand_obj.N == cfg.N && ...
+    isfield(rand_obj, "grid_rows") && rand_obj.grid_rows == grid.rows && ...
+    isfield(rand_obj, "grid_cols") && rand_obj.grid_cols == grid.cols && ...
+    isfield(rand_obj, "rand_term_1") && ...
+    isequal(size(rand_obj.rand_term_1), [grid.rows, grid.cols]) && ...
+    isfield(rand_obj, "rand_term_2") && ...
+    isequal(size(rand_obj.rand_term_2), [grid.rows, grid.cols]);
+end
 
+function rand_obj = make_random_obj(cfg, grid)
+rand_obj = struct();
+rand_obj.rand_term_1 = rand(grid.rows, grid.cols);
+rand_obj.rand_term_2 = rand(grid.rows, grid.cols);
+rand_obj.N = cfg.N;
+rand_obj.grid_rows = grid.rows;
+rand_obj.grid_cols = grid.cols;
+end
+
+function surface_obj = build_surface(cfg, grid, rand_obj)
+z = ((sin(5 * grid.x ./ cfg.N) + 1) .* (cos(15 * grid.y ./ cfg.N) - 1) + ...
+    10 * rand_obj.rand_term_1) .* ...
+    ((cos(5 * grid.y ./ cfg.N) - 1) .* (sin(15 * grid.x ./ cfg.N) + 1) + ...
+    10 * rand_obj.rand_term_2);
+
+% Low-pass filter in frequency domain.
 zz = fft2(z);
 zzz = zeros(size(z));
-n = 2;
-zzz(1:n, 1:n) = zz(1:n, 1:n);
-z = ifft2(zzz);
+zzz(1:cfg.lowpass_n, 1:cfg.lowpass_n) = zz(1:cfg.lowpass_n, 1:cfg.lowpass_n);
+z = real(ifft2(zzz));
 
-z = real(z);
-fig = figure("Color", [0.96 0.96 0.96]);
+surface_obj = struct();
+surface_obj.z = z;
+end
+
+function scene = build_scene(cfg, grid, z)
+fig = figure("Color", cfg.figure_bg);
 ax = axes(fig);
 hold(ax, "on");
 set(fig, "Renderer", "opengl");
 
-% Smooth shaded surface with a subtle edge texture.
-surf_obj = surf(ax, x, y, z, z, ...
+surf(ax, grid.x, grid.y, z, z, ...
     "EdgeColor", "none", ...
     "FaceColor", "interp", ...
     "FaceLighting", "gouraud", ...
@@ -83,7 +145,6 @@ surf_obj = surf(ax, x, y, z, z, ...
     "DiffuseStrength", 0.68, ...
     "AmbientStrength", 0.62);
 
-% Journal-style dark gray landscape with cool highlights near valleys.
 gray_cmap = gray(256);
 gray_cmap = 0.20 + 0.64 * gray_cmap;
 cool_tint = [linspace(0.00, 0.02, 256)', ...
@@ -103,83 +164,94 @@ material(ax, [0.62 0.60 0.02 8 0.9]);
 camlight(ax, "headlight");
 camlight(ax, 35, 20);
 camlight(ax, -45, -8);
-if view_mode == "default"
-    view(3);
-elseif view_mode == "z_axis"
-    view(2);
-else
-    error("Unknown view_mode: %s. Use 'default' or 'z_axis'.", view_mode);
-end
-[az, el] = view;
-view(az + z_rotation_deg, min(el + topdown_tilt_deg, 89));
-set(gcf, "Color", [0.96 0.96 0.96]);
+
+set_view(cfg, ax);
+set(gcf, "Color", cfg.figure_bg);
 axis(ax, "off");
 axis(ax, "tight");
 
-% Two initial points; minimum point will be computed from the surface
-init_pt_1 = [69, 36];
-init_pt_2 = [57, 46];
+scene = struct();
+scene.fig = fig;
+scene.ax = ax;
+scene.z_min = z_min;
+scene.z_max = z_max;
+end
 
-% Find the true minimum point on the current surface z
+function set_view(cfg, ax)
+if cfg.view_mode == "default"
+    view(ax, 3);
+elseif cfg.view_mode == "z_axis"
+    view(ax, 2);
+else
+    error("Unknown view_mode: %s. Use 'default' or 'z_axis'.", cfg.view_mode);
+end
+[az, el] = view(ax);
+view(ax, az + cfg.z_rotation_deg, min(el + cfg.topdown_tilt_deg, 89));
+end
+
+function overlay = build_overlay(cfg, grid, z, z_min, z_max)
+min_obj = find_minimum(grid, z);
+z_span = max(z_max - z_min, 1);
+trace_lift = cfg.trace_lift_ratio * z_span;
+
+trace_1 = make_trace(cfg.init_pt_1, min_obj.point, cfg.n_trace, grid, z, trace_lift);
+trace_2 = make_trace(cfg.init_pt_2, min_obj.point, cfg.n_trace, grid, z, trace_lift);
+
+overlay = struct();
+overlay.trace_1 = trace_1;
+overlay.trace_2 = trace_2;
+overlay.min_obj = min_obj;
+overlay.rope_radius = cfg.rope_radius;
+overlay.ball_radius = cfg.ball_radius;
+overlay.ball3_scale = cfg.ball3_scale;
+overlay.rope_color_1 = cfg.rope_color_1;
+overlay.rope_color_2 = cfg.rope_color_2;
+overlay.ball_color_1 = cfg.ball_color_1;
+overlay.ball_color_2 = cfg.ball_color_2;
+overlay.ball_color_3 = cfg.ball_color_3;
+end
+
+function min_obj = find_minimum(grid, z)
 [min_z, min_idx] = min(z(:));
 [min_row, min_col] = ind2sub(size(z), min_idx);
-min_pt = [x(min_row, min_col), y(min_row, min_col)];
 
-% Sample z from the current surface so markers/traces stay on the mesh
-init_z_1 = interp2(x, y, z, init_pt_1(1), init_pt_1(2), "linear");
-init_z_2 = interp2(x, y, z, init_pt_2(1), init_pt_2(2), "linear");
-z_span = z_max - z_min;
-if z_span <= 0
-    z_span = 1;
+min_obj = struct();
+min_obj.z = min_z;
+min_obj.point = [grid.x(min_row, min_col), grid.y(min_row, min_col)];
 end
-trace_lift = 0.012 * z_span;
-marker_lift = 0.018 * z_span;
-trace_lift = 0.050 * z_span;
-marker_lift = 0.070 * z_span;
-rope_radius = 0.30;
-ball_radius = 0.42;
 
-% Create two optimization traces on the surface
-n_trace = 420;
+function trace_obj = make_trace(init_pt, min_pt, n_trace, grid, z, trace_lift)
 t = linspace(0, 1, n_trace);
-
-trace1_x = init_pt_1(1) + (min_pt(1) - init_pt_1(1)) * t;
-trace1_y = init_pt_1(2) + (min_pt(2) - init_pt_1(2)) * t;
-trace1_z = interp2(x, y, z, trace1_x, trace1_y, "makima");
-if any(isnan(trace1_z))
-    trace1_z = interp2(x, y, z, trace1_x, trace1_y, "linear");
+x = init_pt(1) + (min_pt(1) - init_pt(1)) * t;
+y = init_pt(2) + (min_pt(2) - init_pt(2)) * t;
+z_line = interp2(grid.x, grid.y, z, x, y, "makima");
+if any(isnan(z_line))
+    z_line = interp2(grid.x, grid.y, z, x, y, "linear");
 end
 
-trace2_x = init_pt_2(1) + (min_pt(1) - init_pt_2(1)) * t;
-trace2_y = init_pt_2(2) + (min_pt(2) - init_pt_2(2)) * t;
-trace2_z = interp2(x, y, z, trace2_x, trace2_y, "makima");
-if any(isnan(trace2_z))
-    trace2_z = interp2(x, y, z, trace2_x, trace2_y, "linear");
+trace_obj = struct();
+trace_obj.path = [x(:), y(:), z_line(:) + trace_lift];
 end
 
-% Build 3D rope traces (tube surfaces with texture).
-trace1_path = [trace1_x(:), trace1_y(:), trace1_z(:) + trace_lift];
-trace2_path = [trace2_x(:), trace2_y(:), trace2_z(:) + trace_lift];
-add_textured_rope(ax, trace1_path, rope_radius, [0.06 0.95 0.78]);
-add_textured_rope(ax, trace2_path, rope_radius, [0.24 0.80 1.00]);
+function draw_overlay(ax, overlay)
+add_textured_rope(ax, overlay.trace_1.path, overlay.rope_radius, overlay.rope_color_1);
+add_textured_rope(ax, overlay.trace_2.path, overlay.rope_radius, overlay.rope_color_2);
 
-% Draw 3D balls last so they stay on the top visual layer.
-mk1 = [0.00, 0.88, 0.70]; % teal
-mk2 = [0.20, 0.70, 1.00]; % cyan-blue
-mk3 = [1.00, 0.28, 0.25]; % red
-ball1_center = trace1_path(1, :); % align with rope 1 start centerline
-ball2_center = trace2_path(1, :); % align with rope 2 start centerline
-ball3_center = 0.5 * (trace1_path(end, :) + trace2_path(end, :)); % shared end center
-add_textured_ball(ax, ball1_center, ball_radius, mk1);
-add_textured_ball(ax, ball2_center, ball_radius, mk2);
-add_textured_ball(ax, ball3_center, 1.08 * ball_radius, mk3);
+ball1_center = overlay.trace_1.path(1, :);
+ball2_center = overlay.trace_2.path(1, :);
+ball3_center = 0.5 * (overlay.trace_1.path(end, :) + overlay.trace_2.path(end, :));
+
+add_textured_ball(ax, ball1_center, overlay.ball_radius, overlay.ball_color_1);
+add_textured_ball(ax, ball2_center, overlay.ball_radius, overlay.ball_color_2);
+add_textured_ball(ax, ball3_center, overlay.ball3_scale * overlay.ball_radius, overlay.ball_color_3);
 
 hold(ax, "off");
+end
 
 function add_textured_rope(ax, path_xyz, radius, base_color)
 % Build a tube around a 3D path with bright, clean texture.
 n_sections = 40;
-theta = linspace(0, 2*pi, n_sections + 1);
+theta = linspace(0, 2 * pi, n_sections + 1);
 ct = cos(theta);
 st = sin(theta);
 n_pts = size(path_xyz, 1);
@@ -231,8 +303,8 @@ Z = path_xyz(:, 3) + radius * (normal(:, 3) * ct + binormal(:, 3) * st);
 arc_s = [0; cumsum(vecnorm(diff(path_xyz, 1, 1), 2, 2))];
 arc_s = arc_s / max(arc_s(end), 1e-9);
 twist_u = repmat(arc_s, 1, n_sections + 1);
-twist_v = repmat(theta / (2*pi), n_pts, 1);
-braid = 1.00 + 0.02 * sin(2*pi * (7.0 * twist_u + 2.0 * twist_v));
+twist_v = repmat(theta / (2 * pi), n_pts, 1);
+braid = 1.00 + 0.02 * sin(2 * pi * (7.0 * twist_u + 2.0 * twist_v));
 texture_gain = max(0.98, braid);
 
 C = zeros(n_pts, n_sections + 1, 3);
