@@ -71,11 +71,11 @@ z = real(z);
 fig = figure("Color", [0.96 0.96 0.96]);
 ax = axes(fig);
 hold(ax, "on");
+set(fig, "Renderer", "opengl");
 
 % Smooth shaded surface with a subtle edge texture.
 surf_obj = surf(ax, x, y, z, z, ...
-    "EdgeColor", [0 0 0], ...
-    "EdgeAlpha", 0.08, ...
+    "EdgeColor", "none", ...
     "FaceColor", "interp", ...
     "FaceLighting", "gouraud", ...
     "SpecularStrength", 0.06, ...
@@ -128,44 +128,48 @@ min_pt = [x(min_row, min_col), y(min_row, min_col)];
 % Sample z from the current surface so markers/traces stay on the mesh
 init_z_1 = interp2(x, y, z, init_pt_1(1), init_pt_1(2), "linear");
 init_z_2 = interp2(x, y, z, init_pt_2(1), init_pt_2(2), "linear");
+z_span = z_max - z_min;
+if z_span <= 0
+    z_span = 1;
+end
+trace_lift = 0.012 * z_span;
+marker_lift = 0.018 * z_span;
+trace_lift = 0.050 * z_span;
+marker_lift = 0.040 * z_span;
 
-% Mark the three points with soft halo + bright core.
+% Mark the three points with solid clean markers.
 mk1 = [0.00, 0.88, 0.70]; % teal
 mk2 = [0.20, 0.70, 1.00]; % cyan-blue
 mk3 = [1.00, 0.28, 0.25]; % red
-scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1, 260, mk1, ...
-    "filled", "MarkerFaceAlpha", 0.20, "MarkerEdgeAlpha", 0.00);
-scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2, 260, mk2, ...
-    "filled", "MarkerFaceAlpha", 0.20, "MarkerEdgeAlpha", 0.00);
-scatter3(ax, min_pt(1), min_pt(2), min_z, 320, mk3, ...
-    "filled", "MarkerFaceAlpha", 0.26, "MarkerEdgeAlpha", 0.00);
-scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1, 68, mk1, ...
-    "filled", "MarkerEdgeColor", [0.95 0.95 0.95], "LineWidth", 0.9);
-scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2, 68, mk2, ...
-    "filled", "MarkerEdgeColor", [0.95 0.95 0.95], "LineWidth", 0.9);
-scatter3(ax, min_pt(1), min_pt(2), min_z, 86, mk3, ...
+scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1 + marker_lift, 90, mk1, ...
     "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
+scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2 + marker_lift, 90, mk2, ...
+    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
+scatter3(ax, min_pt(1), min_pt(2), min_z + marker_lift, 110, mk3, ...
+    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.2);
 
 % Create two optimization traces on the surface
-n_trace = 120;
+n_trace = 420;
 t = linspace(0, 1, n_trace);
 
 trace1_x = init_pt_1(1) + (min_pt(1) - init_pt_1(1)) * t;
 trace1_y = init_pt_1(2) + (min_pt(2) - init_pt_1(2)) * t;
-trace1_z = interp2(x, y, z, trace1_x, trace1_y, "linear");
+trace1_z = interp2(x, y, z, trace1_x, trace1_y, "makima");
+if any(isnan(trace1_z))
+    trace1_z = interp2(x, y, z, trace1_x, trace1_y, "linear");
+end
 
 trace2_x = init_pt_2(1) + (min_pt(1) - init_pt_2(1)) * t;
 trace2_y = init_pt_2(2) + (min_pt(2) - init_pt_2(2)) * t;
-trace2_z = interp2(x, y, z, trace2_x, trace2_y, "linear");
+trace2_z = interp2(x, y, z, trace2_x, trace2_y, "makima");
+if any(isnan(trace2_z))
+    trace2_z = interp2(x, y, z, trace2_x, trace2_y, "linear");
+end
 
-% Traces with soft glow underlay + crisp core line.
-plot3(ax, trace1_x, trace1_y, trace1_z, "-", ...
-    "Color", [0.45 1.00 0.85], "LineWidth", 8.0);
-plot3(ax, trace2_x, trace2_y, trace2_z, "-", ...
-    "Color", [0.55 0.90 1.00], "LineWidth", 8.0);
-plot3(ax, trace1_x, trace1_y, trace1_z, "-", ...
-    "Color", [0.05 0.96 0.78], "LineWidth", 3.0);
-plot3(ax, trace2_x, trace2_y, trace2_z, "-", ...
-    "Color", [0.24 0.80 1.00], "LineWidth", 3.0);
+% Traces as pure solid strokes.
+plot3(ax, trace1_x, trace1_y, trace1_z + trace_lift, "-", ...
+    "Color", [0.06 0.95 0.78], "LineWidth", 3.1);
+plot3(ax, trace2_x, trace2_y, trace2_z + trace_lift, "-", ...
+    "Color", [0.24 0.80 1.00], "LineWidth", 3.1);
 
 hold(ax, "off");
