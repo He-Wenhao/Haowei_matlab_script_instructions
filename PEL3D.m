@@ -5,6 +5,7 @@ clear;
 random_mode = "load"; % "generate" or "load"
 view_mode = "default"; % "default" or "z_axis"
 z_rotation_deg = -150; % rotate camera around z axis (azimuth)
+topdown_tilt_deg = 25; % increase elevation for a more top-down view
 random_param_file = "PEL3D_random_params.mat";
 pad_left = 50;
 pad_right = 25;
@@ -76,7 +77,7 @@ else
     error("Unknown view_mode: %s. Use 'default' or 'z_axis'.", view_mode);
 end
 [az, el] = view;
-view(az + z_rotation_deg, el);
+view(az + z_rotation_deg, min(el + topdown_tilt_deg, 89));
 set(gcf, 'Color', 'none');
 axis off
 hold on;
