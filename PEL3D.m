@@ -137,7 +137,7 @@ marker_lift = 0.018 * z_span;
 trace_lift = 0.050 * z_span;
 marker_lift = 0.070 * z_span;
 rope_radius = 0.30;
-ball_radius = 0.80;
+ball_radius = 0.42;
 
 % Create two optimization traces on the surface
 n_trace = 420;
@@ -167,9 +167,12 @@ add_textured_rope(ax, trace2_path, rope_radius, [0.24 0.80 1.00]);
 mk1 = [0.00, 0.88, 0.70]; % teal
 mk2 = [0.20, 0.70, 1.00]; % cyan-blue
 mk3 = [1.00, 0.28, 0.25]; % red
-add_textured_ball(ax, [init_pt_1(1), init_pt_1(2), init_z_1 + marker_lift], ball_radius, mk1);
-add_textured_ball(ax, [init_pt_2(1), init_pt_2(2), init_z_2 + marker_lift], ball_radius, mk2);
-add_textured_ball(ax, [min_pt(1), min_pt(2), min_z + marker_lift], 1.08 * ball_radius, mk3);
+ball1_center = trace1_path(1, :); % align with rope 1 start centerline
+ball2_center = trace2_path(1, :); % align with rope 2 start centerline
+ball3_center = 0.5 * (trace1_path(end, :) + trace2_path(end, :)); % shared end center
+add_textured_ball(ax, ball1_center, ball_radius, mk1);
+add_textured_ball(ax, ball2_center, ball_radius, mk2);
+add_textured_ball(ax, ball3_center, 1.08 * ball_radius, mk3);
 
 hold(ax, "off");
 
