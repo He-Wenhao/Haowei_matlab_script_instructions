@@ -1,0 +1,12 @@
+From: Haowei Xu <haoweixu@mit.edu>
+Subject: paper discussion
+Date: Fri, 2026-03-06 21:22
+
+Instructions/message text:
+Hi Wenhao,
+This is the code to generate energy surface.
+Best wishes,
+Haowei
+
+Attachment observed in email thread:
+- PEL3D.m (623 bytes)
