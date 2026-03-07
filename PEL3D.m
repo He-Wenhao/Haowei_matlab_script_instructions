@@ -135,18 +135,7 @@ end
 trace_lift = 0.012 * z_span;
 marker_lift = 0.018 * z_span;
 trace_lift = 0.050 * z_span;
-marker_lift = 0.040 * z_span;
-
-% Mark the three points with solid clean markers.
-mk1 = [0.00, 0.88, 0.70]; % teal
-mk2 = [0.20, 0.70, 1.00]; % cyan-blue
-mk3 = [1.00, 0.28, 0.25]; % red
-scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1 + marker_lift, 90, mk1, ...
-    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
-scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2 + marker_lift, 90, mk2, ...
-    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
-scatter3(ax, min_pt(1), min_pt(2), min_z + marker_lift, 110, mk3, ...
-    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.2);
+marker_lift = 0.070 * z_span;
 
 % Create two optimization traces on the surface
 n_trace = 420;
@@ -171,5 +160,16 @@ plot3(ax, trace1_x, trace1_y, trace1_z + trace_lift, "-", ...
     "Color", [0.06 0.95 0.78], "LineWidth", 3.1);
 plot3(ax, trace2_x, trace2_y, trace2_z + trace_lift, "-", ...
     "Color", [0.24 0.80 1.00], "LineWidth", 3.1);
+
+% Draw markers last so they stay on the top visual layer.
+mk1 = [0.00, 0.88, 0.70]; % teal
+mk2 = [0.20, 0.70, 1.00]; % cyan-blue
+mk3 = [1.00, 0.28, 0.25]; % red
+scatter3(ax, init_pt_1(1), init_pt_1(2), init_z_1 + marker_lift, 90, mk1, ...
+    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
+scatter3(ax, init_pt_2(1), init_pt_2(2), init_z_2 + marker_lift, 90, mk2, ...
+    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.0);
+scatter3(ax, min_pt(1), min_pt(2), min_z + marker_lift, 110, mk3, ...
+    "filled", "MarkerEdgeColor", [1 1 1], "LineWidth", 1.2);
 
 hold(ax, "off");
