@@ -4,22 +4,34 @@ clear;
 % Reproducible random parameter control
 random_mode = "load"; % "generate" or "load"
 random_param_file = "PEL3D_random_params.mat";
-pad = 0;
+pad = 20;
 N = 100;
-x = (1 + pad):(N-pad);
-y = (1+ pad):(N-pad);
-[x, y] = meshgrid(x, y);
+x_vals = (1 + pad):(N - pad);
+y_vals = (1 + pad):(N - pad);
+[x, y] = meshgrid(x_vals, y_vals);
+grid_size = size(x, 1); % square grid from meshgrid above
 
-if random_mode == "load"
+if random_mode == "load" && isfile(random_param_file)
     loaded_data = load(random_param_file, "random_params");
     random_params = loaded_data.random_params;
+    if ~isfield(random_params, "N")
+        error("Saved random parameters are missing field N.");
+    end
     if random_params.N ~= N
         error("Saved random parameters use N=%d, but current N=%d.", random_params.N, N);
     end
+    if ~isfield(random_params, "grid_size") || random_params.grid_size ~= grid_size
+        warning("Saved random parameters are incompatible with current grid; regenerating.");
+        random_params.rand_term_1 = rand(grid_size, grid_size);
+        random_params.rand_term_2 = rand(grid_size, grid_size);
+        random_params.N = N;
+        random_params.grid_size = grid_size;
+    end
 else
-    random_params.rand_term_1 = rand(1, N);
-    random_params.rand_term_2 = rand(1, N);
+    random_params.rand_term_1 = rand(grid_size, grid_size);
+    random_params.rand_term_2 = rand(grid_size, grid_size);
     random_params.N = N;
+    random_params.grid_size = grid_size;
 end
 
 z = ((sin(5*x./N)+1).*(cos(15*y./N)-1) + 10*random_params.rand_term_1)...
@@ -34,7 +46,7 @@ save(random_param_file, "random_params");
 
 
 zz = fft2(z);
-zzz = zeros(N, N);
+zzz = zeros(size(z));
 n = 2;
 zzz(1:n, 1:n) = zz(1:n, 1:n);
 z = ifft2(zzz);
