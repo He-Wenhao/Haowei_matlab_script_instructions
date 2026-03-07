@@ -4,7 +4,7 @@ clear;
 % Reproducible random parameter control
 random_mode = "load"; % "generate" or "load"
 view_mode = "default"; % "default" or "z_axis"
-z_rotation_deg = -150; % rotate camera around z axis (azimuth)
+z_rotation_deg = -140; % rotate camera around z axis (azimuth)
 topdown_tilt_deg = 10; % increase elevation for a more top-down view
 random_param_file = "PEL3D_random_params.mat";
 pad_left = 50;
