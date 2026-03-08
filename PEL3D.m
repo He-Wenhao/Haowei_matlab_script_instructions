@@ -260,15 +260,8 @@ scene.z_max = z_max;
 end
 
 function set_view(cfg, ax)
-if cfg.view_mode == "default"
-    view(ax, 3);
-elseif cfg.view_mode == "z_axis"
-    view(ax, 2);
-else
-    error("Unknown view_mode: %s. Use 'default' or 'z_axis'.", cfg.view_mode);
-end
-[az, el] = view(ax);
-view(ax, az + cfg.z_rotation_deg, min(el + cfg.topdown_tilt_deg, 89));
+% Use a fixed camera angle for consistent publication snapshots.
+view(ax, [349.50 51.00]);
 end
 
 function overlay = build_overlay(cfg, grid, surface_obj, z_min, z_max)
