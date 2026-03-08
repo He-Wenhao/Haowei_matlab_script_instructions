@@ -22,7 +22,34 @@ Run from this directory in terminal:
 matlab -batch "PEL3D"
 ```
 
-This opens/renders the figure according to parameters inside `PEL3D.m`.
+This runs the **original** surface mode and renders the figure according to parameters inside `PEL3D.m`.
+
+## Switch Modes: Original vs LM
+
+`PEL3D.m` now supports two modes:
+
+- **Original mode** (single minimum behavior):
+  - Call: `PEL3D()`
+  - Batch command:
+    ```bash
+    matlab -batch "PEL3D"
+    ```
+- **LM mode** (split local minima behavior):
+  - Call: `PEL3D('lm')`
+  - Batch command:
+    ```bash
+    matlab -batch "PEL3D('lm')"
+    ```
+
+Recommended export commands:
+
+```bash
+# Original
+matlab -batch "PEL3D; exportgraphics(gcf, 'PEL3D_figure.png', 'Resolution', 300);"
+
+# LM variant
+matlab -batch "PEL3D('lm'); exportgraphics(gcf, 'PEL3D_lm_figure.png', 'Resolution', 300);"
+```
 
 ## Export Figure (Recommended)
 
@@ -34,24 +61,30 @@ matlab -batch "PEL3D; exportgraphics(gcf, 'PEL3D_figure.png', 'Resolution', 300)
 
 Output file:
 - `PEL3D_figure.png`
+- `PEL3D_lm_figure.png` (if LM mode is used)
 
 ## Common Parameters to Edit
 
-Inside `PEL3D.m`, you can adjust:
+Inside `PEL3D.m`, edit values in `build_config(...)`:
 
 - Reproducibility:
-  - `random_mode` (`"load"` or `"generate"`)
-  - `random_param_file`
+  - `cfg.random_mode` (`"load"` or `"generate"`)
+  - `cfg.random_param_file`
 - View controls:
-  - `view_mode`
-  - `z_rotation_deg`
-  - `topdown_tilt_deg`
+  - `cfg.view_mode`
+  - `cfg.z_rotation_deg`
+  - `cfg.topdown_tilt_deg`
 - Surface crop window:
-  - `pad_left`, `pad_right`, `pad_bottom`, `pad_top`
+  - `cfg.pad_left`, `cfg.pad_right`, `cfg.pad_bottom`, `cfg.pad_top`
+- LM split controls:
+  - `cfg.lm_split_distance`
+  - `cfg.lm_sigma`
+  - `cfg.lm_well_depth_ratio`
+  - `cfg.lm_center_ridge_ratio`
 - Styling:
   - surface lighting/material/colormap
-  - `rope_radius`
-  - `ball_radius`
+  - `cfg.rope_radius`
+  - `cfg.ball_radius`
 
 ## Notes
 

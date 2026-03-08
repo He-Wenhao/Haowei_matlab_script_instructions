@@ -1,8 +1,13 @@
-function PEL3D()
+function PEL3D(mode)
 %PEL3D Generate a textured 3D energy landscape and traces.
 %Single-file function-based design so config objects can be changed easily.
 
-cfg = build_config();
+if nargin < 1
+    mode = "original";
+end
+mode = string(mode);
+
+cfg = build_config(mode);
 grid = build_grid(cfg);
 rand_obj = resolve_random_params(cfg, grid);
 surface_obj = build_surface(cfg, grid, rand_obj);
@@ -10,11 +15,11 @@ random_params = rand_obj; %#ok<NASGU> % backward-compatible variable name
 save(cfg.random_param_file, "rand_obj", "random_params");
 
 scene = build_scene(cfg, grid, surface_obj.z);
-overlay = build_overlay(cfg, grid, surface_obj.z, scene.z_min, scene.z_max);
+overlay = build_overlay(cfg, grid, surface_obj, scene.z_min, scene.z_max);
 draw_overlay(scene.ax, overlay);
 end
 
-function cfg = build_config()
+function cfg = build_config(mode)
 cfg = struct();
 
 % Reproducible random parameter control.
@@ -52,6 +57,14 @@ cfg.rope_color_2 = [0.24 0.80 1.00];
 cfg.ball_color_1 = [0.00 0.88 0.70];
 cfg.ball_color_2 = [0.20 0.70 1.00];
 cfg.ball_color_3 = [1.00 0.28 0.25];
+
+% Surface variant controls.
+cfg.surface_variant = mode; % "original" or "lm"
+cfg.lm_split_distance = 3.0; % center-to-center split distance (grid units)
+cfg.lm_sigma = 1.15; % local minimum footprint
+cfg.lm_well_depth_ratio = 0.12; % relative to z span
+cfg.lm_center_ridge_ratio = 0.75; % central bump to separate two minima
+cfg.lm_search_radius = 2.8; % radius to capture each local minimum
 end
 
 function grid = build_grid(cfg)
@@ -128,6 +141,75 @@ z = real(ifft2(zzz));
 
 surface_obj = struct();
 surface_obj.z = z;
+surface_obj.has_split_minima = false;
+surface_obj.lm_min_1 = struct();
+surface_obj.lm_min_2 = struct();
+
+if cfg.surface_variant == "lm"
+    [z_lm, lm_min_1, lm_min_2] = apply_lm_split(cfg, grid, z);
+    surface_obj.z = z_lm;
+    surface_obj.has_split_minima = true;
+    surface_obj.lm_min_1 = lm_min_1;
+    surface_obj.lm_min_2 = lm_min_2;
+elseif cfg.surface_variant ~= "original"
+    error("Unknown surface_variant: %s. Use 'original' or 'lm'.", cfg.surface_variant);
+end
+end
+
+function [z_lm, lm_min_1, lm_min_2] = apply_lm_split(cfg, grid, z_base)
+% Build a tiny double-well near the original minimum.
+[~, min_idx] = min(z_base(:));
+[min_row, min_col] = ind2sub(size(z_base), min_idx);
+min_pt = [grid.x(min_row, min_col), grid.y(min_row, min_col)];
+
+split_axis = cfg.init_pt_2 - cfg.init_pt_1;
+if norm(split_axis) < 1e-9
+    split_axis = [1, 0];
+end
+split_axis = split_axis / norm(split_axis);
+half_split = 0.5 * cfg.lm_split_distance;
+
+center_1 = min_pt + half_split * split_axis;
+center_2 = min_pt - half_split * split_axis;
+
+dx1 = grid.x - center_1(1);
+dy1 = grid.y - center_1(2);
+dx2 = grid.x - center_2(1);
+dy2 = grid.y - center_2(2);
+dcx = grid.x - min_pt(1);
+dcy = grid.y - min_pt(2);
+
+z_span = max(max(z_base(:)) - min(z_base(:)), 1);
+well_depth = cfg.lm_well_depth_ratio * z_span;
+ridge_height = cfg.lm_center_ridge_ratio * well_depth;
+sigma = cfg.lm_sigma;
+
+well_1 = exp(-(dx1.^2 + dy1.^2) / (2 * sigma^2));
+well_2 = exp(-(dx2.^2 + dy2.^2) / (2 * sigma^2));
+ridge = exp(-(dcx.^2 + dcy.^2) / (2 * (0.60 * sigma)^2));
+
+z_lm = z_base - well_depth * (well_1 + well_2) + ridge_height * ridge;
+lm_min_1 = find_local_min_near(grid, z_lm, center_1, cfg.lm_search_radius);
+lm_min_2 = find_local_min_near(grid, z_lm, center_2, cfg.lm_search_radius);
+end
+
+function min_obj = find_local_min_near(grid, z, center_xy, search_radius)
+dist2 = (grid.x - center_xy(1)).^2 + (grid.y - center_xy(2)).^2;
+mask = dist2 <= search_radius^2;
+
+if ~any(mask(:))
+    [~, min_idx] = min(dist2(:));
+    [row_idx, col_idx] = ind2sub(size(z), min_idx);
+else
+    z_masked = z;
+    z_masked(~mask) = inf;
+    [~, min_idx] = min(z_masked(:));
+    [row_idx, col_idx] = ind2sub(size(z_masked), min_idx);
+end
+
+min_obj = struct();
+min_obj.z = z(row_idx, col_idx);
+min_obj.point = [grid.x(row_idx, col_idx), grid.y(row_idx, col_idx)];
 end
 
 function scene = build_scene(cfg, grid, z)
@@ -189,18 +271,40 @@ end
 view(ax, az + cfg.z_rotation_deg, min(el + cfg.topdown_tilt_deg, 89));
 end
 
-function overlay = build_overlay(cfg, grid, z, z_min, z_max)
+function overlay = build_overlay(cfg, grid, surface_obj, z_min, z_max)
+z = surface_obj.z;
 min_obj = find_minimum(grid, z);
 z_span = max(z_max - z_min, 1);
 trace_lift = cfg.trace_lift_ratio * z_span;
 
-trace_1 = make_trace(cfg.init_pt_1, min_obj.point, cfg.n_trace, grid, z, trace_lift);
-trace_2 = make_trace(cfg.init_pt_2, min_obj.point, cfg.n_trace, grid, z, trace_lift);
+if cfg.surface_variant == "lm"
+    lm_pt_1 = surface_obj.lm_min_1.point;
+    lm_pt_2 = surface_obj.lm_min_2.point;
+    % Choose the endpoint pairing that minimizes total travel distance
+    % so the two LM traces do not cross each other.
+    pairing_cost_direct = norm(cfg.init_pt_1 - lm_pt_1) + norm(cfg.init_pt_2 - lm_pt_2);
+    pairing_cost_swap = norm(cfg.init_pt_1 - lm_pt_2) + norm(cfg.init_pt_2 - lm_pt_1);
+    if pairing_cost_swap < pairing_cost_direct
+        target_1 = lm_pt_2;
+        target_2 = lm_pt_1;
+    else
+        target_1 = lm_pt_1;
+        target_2 = lm_pt_2;
+    end
+    trace_1 = make_trace(cfg.init_pt_1, target_1, cfg.n_trace, grid, z, trace_lift);
+    trace_2 = make_trace(cfg.init_pt_2, target_2, cfg.n_trace, grid, z, trace_lift);
+    dual_endpoints = true;
+else
+    trace_1 = make_trace(cfg.init_pt_1, min_obj.point, cfg.n_trace, grid, z, trace_lift);
+    trace_2 = make_trace(cfg.init_pt_2, min_obj.point, cfg.n_trace, grid, z, trace_lift);
+    dual_endpoints = false;
+end
 
 overlay = struct();
 overlay.trace_1 = trace_1;
 overlay.trace_2 = trace_2;
 overlay.min_obj = min_obj;
+overlay.dual_endpoints = dual_endpoints;
 overlay.rope_radius = cfg.rope_radius;
 overlay.ball_radius = cfg.ball_radius;
 overlay.ball3_scale = cfg.ball3_scale;
@@ -243,7 +347,12 @@ ball3_center = 0.5 * (overlay.trace_1.path(end, :) + overlay.trace_2.path(end, :
 
 add_textured_ball(ax, ball1_center, overlay.ball_radius, overlay.ball_color_1);
 add_textured_ball(ax, ball2_center, overlay.ball_radius, overlay.ball_color_2);
-add_textured_ball(ax, ball3_center, overlay.ball3_scale * overlay.ball_radius, overlay.ball_color_3);
+if overlay.dual_endpoints
+    add_textured_ball(ax, overlay.trace_1.path(end, :), overlay.ball3_scale * overlay.ball_radius, overlay.ball_color_3);
+    add_textured_ball(ax, overlay.trace_2.path(end, :), overlay.ball3_scale * overlay.ball_radius, [1.00, 0.55, 0.12]);
+else
+    add_textured_ball(ax, ball3_center, overlay.ball3_scale * overlay.ball_radius, overlay.ball_color_3);
+end
 
 hold(ax, "off");
 end
