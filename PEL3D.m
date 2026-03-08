@@ -52,11 +52,11 @@ cfg.ball3_scale = 1.08;
 
 % Appearance controls.
 cfg.figure_bg = [0.96 0.96 0.96];
-cfg.rope_color_1 = [0.06 0.95 0.78];
+cfg.rope_color_1 = [1.00 0.45 0.45];
 cfg.rope_color_2 = [0.24 0.80 1.00];
-cfg.ball_color_1 = [0.00 0.88 0.70];
+cfg.ball_color_1 = [1.00 0.45 0.45];
 cfg.ball_color_2 = [0.20 0.70 1.00];
-cfg.ball_color_3 = [1.00 0.28 0.25];
+cfg.ball_color_3 = [1.00 0.90 0.12];
 
 % Surface variant controls.
 cfg.surface_variant = mode; % "original" or "lm"
